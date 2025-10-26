@@ -1,11 +1,21 @@
 import type { Metadata } from "next";
 import { ClerkProvider } from '@clerk/nextjs';
 import "./globals.css";
+import { ThemeProvider } from "next-themes";
+import Header from "@/components/Header";
+import { Poppins } from 'next/font/google';
+import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
   title: "QuickPoll - Real-Time Opinion Polling",
   description: "Create polls, vote, and see live updates in real-time",
 };
+
+const poppins = Poppins({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-sans',
+});
 
 export default function RootLayout({
   children,
@@ -14,10 +24,14 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider>
-      <html lang="en">
-        <body className="antialiased">
-          {children}
-        </body>
+      <html lang="en" className={poppins.variable}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <body className="antialiased">
+            <Header />
+            {children}
+            <Toaster position="bottom-right" />
+          </body>
+        </ThemeProvider>
       </html>
     </ClerkProvider>
   );

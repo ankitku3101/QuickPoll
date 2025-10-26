@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { api } from '@/lib/api';
+import toast from 'react-hot-toast';
 
-export default function CreatePollForm({ onPollCreated }: { onPollCreated: () => void }) {
+export default function CreatePollForm({ onPollCreated }: { onPollCreated: (poll: any) => void }) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [options, setOptions] = useState(['', '']);
@@ -40,16 +42,17 @@ export default function CreatePollForm({ onPollCreated }: { onPollCreated: () =>
 
     setLoading(true);
     try {
-      await api.post('/api/polls', {
+      const response = await api.post('/api/polls', {
         title,
         description,
         options: validOptions,
       });
-      
       setTitle('');
       setDescription('');
       setOptions(['', '']);
-      onPollCreated();
+      const createdPoll = response.data;
+      onPollCreated(createdPoll);
+      toast.success('Poll created successfully!'); 
     } catch (err: any) {
       setError(err.response?.data?.error || 'Failed to create poll');
     } finally {
@@ -58,79 +61,100 @@ export default function CreatePollForm({ onPollCreated }: { onPollCreated: () =>
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg shadow-md p-6 mb-6">
-      <h2 className="text-2xl font-bold mb-4">Create New Poll</h2>
-      
-      {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-          {error}
+    <div className="bg-background rounded-2xl shadow-2xl border border-border overflow-hidden">
+      <form onSubmit={handleSubmit}>
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-border">
+          <h2 className="text-xl font-semibold tracking-tight">Create a new poll</h2>
+          <p className="text-sm text-muted-foreground mt-1">Share your question with the community</p>
         </div>
-      )}
 
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Poll Title *</label>
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-          placeholder="What's your question?"
-          required
-        />
-      </div>
+        {/* Content */}
+        <div className="px-6 py-6 space-y-5 max-h-[60vh] overflow-y-auto">
+          {error && (
+            <div className="bg-destructive/10 border border-destructive/20 text-destructive px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Description (Optional)</label>
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-          placeholder="Add more context..."
-          rows={2}
-        />
-      </div>
-
-      <div className="mb-4">
-        <label className="block text-sm font-medium mb-2">Options *</label>
-        {options.map((option, index) => (
-          <div key={index} className="flex gap-2 mb-2">
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Poll Question
+            </label>
             <input
               type="text"
-              value={option}
-              onChange={(e) => updateOption(index, e.target.value)}
-              className="flex-1 px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:bg-gray-700 dark:border-gray-600"
-              placeholder={`Option ${index + 1}`}
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              className="w-full px-4 py-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+              placeholder="What would you like to ask?"
               required
             />
-            {options.length > 2 && (
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Description <span className="text-muted-foreground font-normal">(optional)</span>
+            </label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full px-4 py-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all resize-none text-sm"
+              placeholder="Add some context..."
+              rows={3}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-2">
+              Options
+            </label>
+            <div className="space-y-2">
+              {options.map((option, index) => (
+                <div key={index} className="flex gap-2">
+                  <input
+                    type="text"
+                    value={option}
+                    onChange={(e) => updateOption(index, e.target.value)}
+                    className="flex-1 px-4 py-2.5 bg-muted/50 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-sm"
+                    placeholder={`Option ${index + 1}`}
+                    required
+                  />
+                  {options.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => removeOption(index)}
+                      className="size-10 flex items-center justify-center rounded-lg bg-muted/50 border border-border hover:bg-destructive/10 hover:border-destructive/20 text-muted-foreground hover:text-destructive transition-all shrink-0"
+                    >
+                      <X className="size-4" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+            {options.length < 10 && (
               <button
                 type="button"
-                onClick={() => removeOption(index)}
-                className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                onClick={addOption}
+                className="mt-3 flex items-center gap-2 px-4 py-2 text-sm font-medium bg-muted/50 border border-border hover:bg-muted rounded-lg transition-all"
               >
-                ✕
+                <Plus className="size-4" />
+                Add option
               </button>
             )}
           </div>
-        ))}
-        {options.length < 10 && (
-          <button
-            type="button"
-            onClick={addOption}
-            className="mt-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600"
-          >
-            + Add Option
-          </button>
-        )}
-      </div>
+        </div>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed font-medium"
-      >
-        {loading ? 'Creating...' : 'Create Poll'}
-      </button>
-    </form>
+        {/* Footer */}
+        <div className="px-6 py-4 border-t border-border bg-muted/30 flex items-center justify-end gap-3">
+          <button
+            type="submit"
+            disabled={loading}
+            className="px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm transition-all"
+          >
+            {loading ? 'Creating...' : 'Create Poll'}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
