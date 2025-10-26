@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { ArrowUpRight, BarChart, ChevronRight, X } from 'lucide-react';
+import { BarChart, X, Filter } from 'lucide-react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import CreatePollForm from '@/components/CreatePollForm';
@@ -50,7 +50,9 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);
+  const [filterMode, setFilterMode] = useState<'all' | 'my'>('all');
 
+  // Set auth headers when user signs in
   useEffect(() => {
     if (isSignedIn && user) {
       const userName = user.firstName || user.username || 'Anonymous';
@@ -61,22 +63,32 @@ export default function Home() {
     }
   }, [isSignedIn, user]);
 
-  const fetchPolls = async () => {
+  // Fetch polls with proper error handling
+  const fetchPolls = useCallback(async () => {
     try {
       const response = await api.get<PollResponse>('/api/polls');
-      console.log('Fetched polls:', response.data);
-      console.log('User votes:', response.data.userVotes);
-      console.log('User likes:', response.data.userLikes);
-      setPolls(response.data.polls);
+      setPolls(response.data.polls || []);
       setUserVotes(response.data.userVotes || {});
       setUserLikes(response.data.userLikes || {});
     } catch (error) {
       console.error('Failed to fetch polls:', error);
+      setPolls([]);
+      setUserVotes({});
+      setUserLikes({});
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
+  // Filter polls based on mode
+  const filteredPolls = useMemo(() => {
+    if (filterMode === 'my' && user?.id) {
+      return polls.filter(poll => poll.createdBy === user.id);
+    }
+    return polls;
+  }, [polls, filterMode, user?.id]);
+
+  // Setup socket listeners
   useEffect(() => {
     fetchPolls();
 
@@ -84,8 +96,8 @@ export default function Home() {
 
     socket.on('poll-created', (poll: Poll) => {
       setPolls((prev) => {
-        const exists = prev.some((p) => p._id === poll._id);
-        return exists ? prev : [poll, ...prev];
+        if (prev.some((p) => p._id === poll._id)) return prev;
+        return [poll, ...prev];
       });
     });
 
@@ -97,17 +109,27 @@ export default function Home() {
 
     socket.on('poll-deleted', ({ pollId }: { pollId: string }) => {
       setPolls((prev) => prev.filter((poll) => poll._id !== pollId));
+      setUserVotes((prev) => {
+        const updated = { ...prev };
+        delete updated[pollId];
+        return updated;
+      });
+      setUserLikes((prev) => {
+        const updated = { ...prev };
+        delete updated[pollId];
+        return updated;
+      });
     });
 
-    socket.on('poll-voted', ({ poll }: { poll: Poll }) => {
+    socket.on('poll-voted', ({ pollId, poll }: { pollId: string; poll: Poll }) => {
       setPolls((prev) =>
-        prev.map((p) => (p._id === poll._id ? poll : p))
+        prev.map((p) => (p._id === pollId ? poll : p))
       );
     });
 
-    socket.on('poll-liked', ({ poll }: { poll: Poll }) => {
+    socket.on('poll-liked', ({ pollId, poll }: { pollId: string; poll: Poll }) => {
       setPolls((prev) =>
-        prev.map((p) => (p._id === poll._id ? poll : p))
+        prev.map((p) => (p._id === pollId ? poll : p))
       );
     });
 
@@ -118,7 +140,13 @@ export default function Home() {
       socket.off('poll-voted');
       socket.off('poll-liked');
     };
-  }, []);
+  }, [fetchPolls]);
+
+  const handlePollCreated = useCallback(async (newPoll: Poll) => {
+    setShowCreateModal(false);
+    await fetchPolls();
+    setAnimationKey(prev => prev + 1);
+  }, [fetchPolls]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -133,9 +161,7 @@ export default function Home() {
                 transition={{ duration: 0.8, ease: 'easeOut' }}
                 className="flex w-full flex-col gap-8 px-10 py-20 md:px-14"
               >
-                <div
-                  className="flex w-fit cursor-pointer items-center gap-1 rounded-full border border-border px-6 py-2 transition-all ease-in-out"
-                >
+                <div className="flex w-fit items-center gap-1 rounded-full border border-border px-6 py-2 transition-all ease-in-out">
                   <BarChart className="size-4 animate-pulse text-green-400" />
                   <span className="text-muted-foreground text-sm font-medium tracking-tight">
                     Real-time polling made simple
@@ -209,7 +235,7 @@ export default function Home() {
                             Join thousands of users sharing their opinions and making decisions together.
                           </p>
                           <p className="text-white drop-shadow-lg text-xl tracking-tight text-center">
-                            {polls.length} Active Polls
+                            {polls.length} Active {polls.length === 1 ? 'Poll' : 'Polls'}
                           </p>
                         </div>
                       </div>
@@ -229,13 +255,45 @@ export default function Home() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.6 }}
-          className="mb-12 text-center"
+          className="mb-12"
         >
-          <h2 className="text-4xl font-semibold tracking-tight mb-3">All Polls</h2>
-          <div className="h-1 w-12 bg-foreground rounded-full mx-auto mb-4" />
-          <p className="text-muted-foreground tracking-tight">
-            {polls.length} {polls.length === 1 ? 'poll' : 'polls'} available
-          </p>
+          <div className="flex items-center justify-between mb-6 mx-auto px-4">
+            <div>
+              <h2 className="text-4xl font-semibold tracking-tight mb-3">
+                {filterMode === 'my' ? 'My Polls' : 'All Polls'}
+              </h2>
+              <div className="h-1 w-12 bg-foreground rounded-full mb-4" />
+              <p className="text-muted-foreground tracking-tight">
+                {filteredPolls.length} {filteredPolls.length === 1 ? 'poll' : 'polls'} available
+              </p>
+            </div>
+
+            {/* Filter Toggle */}
+            {isSignedIn && (
+              <div className="flex items-center gap-2 bg-muted rounded-full p-1">
+                <button
+                  onClick={() => setFilterMode('all')}
+                  className={`px-6 py-2 rounded-full text-sm font-medium tracking-tight transition-all cursor-pointer ${
+                    filterMode === 'all'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  All Polls
+                </button>
+                <button
+                  onClick={() => setFilterMode('my')}
+                  className={`px-6 py-2 rounded-full text-sm font-medium tracking-tight transition-all cursor-pointer ${
+                    filterMode === 'my'
+                      ? 'bg-background text-foreground shadow-sm'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  My Polls
+                </button>
+              </div>
+            )}
+          </div>
         </motion.div>
 
         {loading ? (
@@ -243,20 +301,30 @@ export default function Home() {
             <div className="inline-block animate-spin rounded-full h-12 w-12 border-2 border-muted border-t-foreground"></div>
             <p className="mt-6 text-muted-foreground tracking-tight">Loading polls...</p>
           </div>
-        ) : polls.length === 0 ? (
+        ) : filteredPolls.length === 0 ? (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.5 }}
             className="max-w-2xl mx-auto bg-muted/50 rounded-3xl py-20 text-center"
           >
-            <p className="text-muted-foreground text-lg tracking-tight">
-              No polls yet. Be the first to create one!
+            <p className="text-muted-foreground text-lg tracking-tight mb-4">
+              {filterMode === 'my' 
+                ? "You haven't created any polls yet."
+                : 'No polls yet. Be the first to create one!'}
             </p>
+            {filterMode === 'my' && (
+              <button
+                onClick={() => setShowCreateModal(true)}
+                className="bg-primary text-primary-foreground px-6 py-2 rounded-full hover:opacity-90 transition-opacity cursor-pointer"
+              >
+                Create Your First Poll
+              </button>
+            )}
           </motion.div>
         ) : (
           <motion.div
-            key={animationKey}
+            key={`${animationKey}-${filterMode}`}
             initial="hidden"
             animate="visible"
             variants={{
@@ -265,28 +333,25 @@ export default function Home() {
             }}
             className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6"
           >
-            {polls.map((poll) => {
-              console.log('Rendering poll:', poll._id, poll);
-              return (
-                <motion.div
-                  key={poll._id}
-                  variants={{
-                    hidden: { opacity: 0, y: 20 },
-                    visible: { opacity: 1, y: 0 },
-                  }}
-                  transition={{ duration: 0.5 }}
-                  className="break-inside-avoid"
-                >
-                  <PollCard
-                    poll={poll}
-                    userVote={userVotes[poll._id]}
-                    userLiked={userLikes[poll._id]}
-                    currentUserId={user?.id}
-                    onUpdate={fetchPolls}
-                  />
-                </motion.div>
-              );
-            })}
+            {filteredPolls.map((poll) => (
+              <motion.div
+                key={poll._id}
+                variants={{
+                  hidden: { opacity: 0, y: 20 },
+                  visible: { opacity: 1, y: 0 },
+                }}
+                transition={{ duration: 0.5 }}
+                className="break-inside-avoid"
+              >
+                <PollCard
+                  poll={poll}
+                  userVote={userVotes[poll._id]}
+                  userLiked={userLikes[poll._id]}
+                  currentUserId={user?.id}
+                  onUpdate={fetchPolls}
+                />
+              </motion.div>
+            ))}
           </motion.div>
         )}
       </main>
@@ -298,6 +363,11 @@ export default function Home() {
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowCreateModal(false);
+            }
+          }}
         >
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
@@ -308,20 +378,12 @@ export default function Home() {
             <div className="relative">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="absolute -right-2 -top-2 z-10 size-10 rounded-full bg-background border border-border hover:bg-muted flex items-center justify-center transition-all"
+                className="absolute -right-2 -top-2 z-10 size-10 rounded-full bg-background border border-border hover:bg-muted flex items-center justify-center transition-all cursor-pointer"
+                aria-label="Close modal"
               >
                 <X className="size-5" />
               </button>
-              <CreatePollForm
-                onPollCreated={async (newPoll) => {
-                  console.log('New poll created:', newPoll);
-                  setShowCreateModal(false);
-                  // Refetch all polls to ensure we have complete data including userVotes and userLikes
-                  await fetchPolls();
-                  // Force re-animation
-                  setAnimationKey(prev => prev + 1);
-                }}
-              />
+              <CreatePollForm onPollCreated={handlePollCreated} />
             </div>
           </motion.div>
         </motion.div>

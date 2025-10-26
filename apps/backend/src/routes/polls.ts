@@ -8,47 +8,53 @@ import { io } from '../index';
 
 const router = express.Router();
 
-// Get all polls
+// Get all polls with user-specific data
 router.get('/', optionalAuth, async (req: AuthRequest, res) => {
   try {
-    const polls = await Poll.find().sort({ createdAt: -1 });
+    const polls = await Poll.find().sort({ createdAt: -1 }).lean();
     
-    // If user is authenticated, get their votes and likes
-    let userVotes: any = {};
-    let userLikes: any = {};
+    let userVotes: Record<string, string> = {};
+    let userLikes: Record<string, boolean> = {};
     
     if (req.user) {
-      const votes = await Vote.find({ userId: req.user.id });
-      const likes = await Like.find({ userId: req.user.id });
+      const [votes, likes] = await Promise.all([
+        Vote.find({ userId: req.user.id }).lean(),
+        Like.find({ userId: req.user.id }).lean()
+      ]);
       
-      votes.forEach(vote => {
-        userVotes[vote.pollId] = vote.optionId;
-      });
-      
-      likes.forEach(like => {
-        userLikes[like.pollId] = true;
-      });
+      votes.forEach(vote => { userVotes[vote.pollId] = vote.optionId; });
+      likes.forEach(like => { userLikes[like.pollId] = true; });
     }
     
-    res.json({
-      polls,
-      userVotes,
-      userLikes
-    });
+    res.json({ polls, userVotes, userLikes });
   } catch (error) {
+    console.error('Fetch polls error:', error);
     res.status(500).json({ error: 'Failed to fetch polls' });
   }
 });
 
-// Get single poll
-router.get('/:id', async (req, res) => {
+// Get single poll with user vote/like
+router.get('/:id', optionalAuth, async (req: AuthRequest, res) => {
   try {
-    const poll = await Poll.findById(req.params.id);
-    if (!poll) {
-      return res.status(404).json({ error: 'Poll not found' });
+    const poll = await Poll.findById(req.params.id).lean();
+    if (!poll) return res.status(404).json({ error: 'Poll not found' });
+    
+    let userVote = null;
+    let userLiked = false;
+    
+    if (req.user) {
+      const [vote, like] = await Promise.all([
+        Vote.findOne({ pollId: req.params.id, userId: req.user.id }).lean(),
+        Like.findOne({ pollId: req.params.id, userId: req.user.id }).lean()
+      ]);
+      
+      if (vote) userVote = vote.optionId;
+      if (like) userLiked = true;
     }
-    res.json(poll);
+    
+    res.json({ poll, userVote, userLiked });
   } catch (error) {
+    console.error('Fetch poll error:', error);
     res.status(500).json({ error: 'Failed to fetch poll' });
   }
 });
@@ -58,127 +64,129 @@ router.post('/', authenticateUser, async (req: AuthRequest, res) => {
   try {
     const { title, description, options } = req.body;
     
-    if (!title || !options || options.length < 2) {
-      return res.status(400).json({ error: 'Title and at least 2 options required' });
+    if (!title?.trim()) {
+      return res.status(400).json({ error: 'Title is required' });
     }
     
-    const pollOptions = options.map((text: string) => ({
-      id: uuidv4(),
-      text,
-      votes: 0
-    }));
+    if (!Array.isArray(options) || options.length < 2) {
+      return res.status(400).json({ error: 'At least 2 options required' });
+    }
     
-    const poll = new Poll({
-      title,
-      description,
-      options: pollOptions,
+    const validOptions = options
+      .map(text => text?.trim())
+      .filter(text => text && text.length > 0);
+    
+    if (validOptions.length < 2) {
+      return res.status(400).json({ error: 'At least 2 valid options required' });
+    }
+    
+    const poll = await Poll.create({
+      title: title.trim(),
+      description: description?.trim() || undefined,
+      options: validOptions.map(text => ({ id: uuidv4(), text, votes: 0 })),
       createdBy: req.user!.id,
       createdByName: req.user!.name,
       totalVotes: 0,
       likes: 0
     });
     
-    await poll.save();
-    
-    // Emit socket event
     io.emit('poll-created', poll);
-    
     res.status(201).json(poll);
   } catch (error) {
+    console.error('Create poll error:', error);
     res.status(500).json({ error: 'Failed to create poll' });
   }
 });
 
-// Vote on poll
+// Vote on poll (no vote changes allowed - prevents gaming)
 router.post('/:id/vote', authenticateUser, async (req: AuthRequest, res) => {
   try {
     const { optionId } = req.body;
     const pollId = req.params.id;
     
-    const poll = await Poll.findById(pollId);
-    if (!poll) {
-      return res.status(404).json({ error: 'Poll not found' });
+    if (!optionId) {
+      return res.status(400).json({ error: 'Option ID required' });
     }
     
-    // Check if option exists
+    // Check existing vote first (faster fail)
+    const existingVote = await Vote.findOne({ pollId, userId: req.user!.id });
+    if (existingVote) {
+      return res.status(409).json({ 
+        error: 'Already voted',
+        userVote: existingVote.optionId 
+      });
+    }
+    
+    const poll = await Poll.findById(pollId);
+    if (!poll) return res.status(404).json({ error: 'Poll not found' });
+    
     const option = poll.options.find(opt => opt.id === optionId);
     if (!option) {
       return res.status(400).json({ error: 'Invalid option' });
     }
     
-    // Check if user already voted
-    const existingVote = await Vote.findOne({ pollId, userId: req.user!.id });
-    
-    if (existingVote) {
-      // Update vote
-      const oldOption = poll.options.find(opt => opt.id === existingVote.optionId);
-      if (oldOption) oldOption.votes--;
-      
-      option.votes++;
-      existingVote.optionId = optionId;
-      
-      await existingVote.save();
-      await poll.save();
-    } else {
-      // New vote
-      const vote = new Vote({
+    // Create vote and update poll atomically
+    const [vote] = await Promise.all([
+      Vote.create({
         pollId,
         optionId,
         userId: req.user!.id,
         userName: req.user!.name
-      });
-      
-      option.votes++;
-      poll.totalVotes++;
-      
-      await vote.save();
-      await poll.save();
-    }
+      }),
+      Poll.findByIdAndUpdate(
+        pollId,
+        {
+          $inc: { 
+            totalVotes: 1,
+            'options.$[elem].votes': 1
+          }
+        },
+        { 
+          arrayFilters: [{ 'elem.id': optionId }],
+          new: true
+        }
+      )
+    ]);
     
-    // Emit socket event
-    io.to(`poll-${pollId}`).emit('poll-updated', poll);
-    io.emit('poll-voted', { pollId, poll });
+    const updatedPoll = await Poll.findById(pollId);
     
-    res.json(poll);
+    io.to(`poll-${pollId}`).emit('poll-updated', updatedPoll);
+    io.emit('poll-voted', { pollId, poll: updatedPoll });
+    
+    res.json({ poll: updatedPoll, userVote: optionId });
   } catch (error) {
+    console.error('Vote error:', error);
     res.status(500).json({ error: 'Failed to vote' });
   }
 });
 
-// Toggle like on poll
+// Toggle like
 router.post('/:id/like', authenticateUser, async (req: AuthRequest, res) => {
   try {
     const pollId = req.params.id;
     
-    const poll = await Poll.findById(pollId);
-    if (!poll) {
-      return res.status(404).json({ error: 'Poll not found' });
-    }
-    
     const existingLike = await Like.findOne({ pollId, userId: req.user!.id });
+    const increment = existingLike ? -1 : 1;
     
-    if (existingLike) {
-      // Unlike
-      await existingLike.deleteOne();
-      poll.likes--;
-    } else {
-      // Like
-      const like = new Like({
+    const [poll] = await Promise.all([
+      Poll.findByIdAndUpdate(
         pollId,
-        userId: req.user!.id
-      });
-      await like.save();
-      poll.likes++;
-    }
+        { $inc: { likes: increment } },
+        { new: true }
+      ),
+      existingLike 
+        ? existingLike.deleteOne()
+        : Like.create({ pollId, userId: req.user!.id })
+    ]);
     
-    await poll.save();
+    if (!poll) return res.status(404).json({ error: 'Poll not found' });
     
-    // Emit socket event
     io.to(`poll-${pollId}`).emit('poll-updated', poll);
     io.emit('poll-liked', { pollId, poll });
     
-    res.json(poll);
+    res.json({ poll, userLiked: !existingLike });
   } catch (error) {
+    console.error('Like error:', error);
     res.status(500).json({ error: 'Failed to toggle like' });
   }
 });
@@ -187,24 +195,22 @@ router.post('/:id/like', authenticateUser, async (req: AuthRequest, res) => {
 router.delete('/:id', authenticateUser, async (req: AuthRequest, res) => {
   try {
     const poll = await Poll.findById(req.params.id);
-    
-    if (!poll) {
-      return res.status(404).json({ error: 'Poll not found' });
-    }
+    if (!poll) return res.status(404).json({ error: 'Poll not found' });
     
     if (poll.createdBy !== req.user!.id) {
-      return res.status(403).json({ error: 'Not authorized to delete this poll' });
+      return res.status(403).json({ error: 'Not authorized' });
     }
     
-    await poll.deleteOne();
-    await Vote.deleteMany({ pollId: req.params.id });
-    await Like.deleteMany({ pollId: req.params.id });
+    await Promise.all([
+      poll.deleteOne(),
+      Vote.deleteMany({ pollId: req.params.id }),
+      Like.deleteMany({ pollId: req.params.id })
+    ]);
     
-    // Emit socket event
     io.emit('poll-deleted', { pollId: req.params.id });
-    
-    res.json({ message: 'Poll deleted successfully' });
+    res.json({ success: true });
   } catch (error) {
+    console.error('Delete error:', error);
     res.status(500).json({ error: 'Failed to delete poll' });
   }
 });
