@@ -48,12 +48,12 @@ export default function Header() {
             ) : (
               <div className="flex items-center gap-2">
             <SignInButton mode="modal">
-              <button className="px-4 py-2 text-sm font-medium rounded-lg border border-border bg-background hover:bg-muted transition-all tracking-tight">
+              <button className="px-4 py-2 text-sm font-medium rounded-lg border border-border bg-background hover:bg-muted transition-all tracking-tight cursor-pointer">
                 Sign In
               </button>
             </SignInButton>
             <SignUpButton mode="modal">
-              <button className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-all tracking-tight">
+              <button className="px-4 py-2 text-sm font-medium rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-all tracking-tight cursor-pointer">
                 Sign Up
               </button>
             </SignUpButton>

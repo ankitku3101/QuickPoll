@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { SignInButton } from '@clerk/nextjs';
+import toast from 'react-hot-toast';
 
 interface PollOption {
   id: string;
@@ -118,7 +118,7 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
     if (hasVoted || voting) return;
     
     if (!isAuthenticated) {
-      setError('Please sign in to vote on polls.');
+      toast.error('Please sign in to vote on polls.');
       return;
     }
 
@@ -162,7 +162,7 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
     if (liking) return;
     
     if (!isAuthenticated) {
-      setError('Please sign in to like polls.');
+      toast.error('Please sign in to like on polls.');
       return;
     }
     
@@ -307,21 +307,6 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
 
       <div className="h-[1px] w-10 bg-foreground rounded-full mb-6" aria-hidden="true" />
 
-      {/* Sign in prompt for unauthenticated users */}
-      {!isAuthenticated && (
-        <Alert className="mb-4">
-          <LogIn className="h-4 w-4" />
-          <AlertDescription className="flex items-center justify-between">
-            <span>Sign in to vote and like polls</span>
-            <SignInButton mode="modal">
-              <Button variant="outline" size="sm" className="ml-2">
-                Sign In
-              </Button>
-            </SignInButton>
-          </AlertDescription>
-        </Alert>
-      )}
-
       {/* Options */}
       <div className="space-y-3 mb-6 flex-1" role="group" aria-label="Poll options">
         {optionStats.map((option) => {
@@ -331,7 +316,7 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
             <div key={option.id} className="relative">
               <button
                 onClick={() => handleVote(option.id)}
-                disabled={voting || hasVoted || !isAuthenticated}
+                disabled={voting || hasVoted}
                 className={`w-full text-left px-5 py-3 rounded-xl border-2 cursor-pointer transition-all relative overflow-hidden focus:outline-none focus:ring-2 focus:ring-offset-2 ${
                   isUserChoice
                     ? 'border-foreground bg-background focus:ring-foreground'
@@ -379,7 +364,7 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
       <div className="flex items-center gap-4 pt-4 border-t border-muted">
         <button
           onClick={handleLike}
-          disabled={liking || !isAuthenticated}
+          disabled={liking}
           className={`flex items-center gap-1.5 transition-all font-medium tracking-tight text-sm cursor-pointer min-h-[44px] px-2 -mx-2 rounded focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-foreground ${
             isLiked ? 'text-red-500' : 'text-muted-foreground hover:text-foreground'
           } ${liking || !isAuthenticated ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -410,3 +395,4 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
     </div>
   );
 }
+
