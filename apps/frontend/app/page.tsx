@@ -1,64 +1,166 @@
-import Image from "next/image";
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useUser } from '@clerk/nextjs';
+import Header from '@/components/Header';
+import CreatePollForm from '@/components/CreatePollForm';
+import PollCard from '@/components/PollCard';
+import { api, setAuthHeaders, clearAuthHeaders } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
+
+interface Poll {
+  _id: string;
+  title: string;
+  description?: string;
+  options: Array<{ id: string; text: string; votes: number }>;
+  createdBy: string;
+  createdByName: string;
+  totalVotes: number;
+  likes: number;
+  createdAt: string;
+}
+
+interface PollResponse {
+  polls: Poll[];
+  userVotes: Record<string, string>;
+  userLikes: Record<string, boolean>;
+}
 
 export default function Home() {
+  const { isSignedIn, user } = useUser();
+  const [polls, setPolls] = useState<Poll[]>([]);
+  const [userVotes, setUserVotes] = useState<Record<string, string>>({});
+  const [userLikes, setUserLikes] = useState<Record<string, boolean>>({});
+  const [loading, setLoading] = useState(true);
+  const [showCreateForm, setShowCreateForm] = useState(false);
+
+  useEffect(() => {
+    if (isSignedIn && user) {
+      const userName = user.firstName || user.username || 'Anonymous';
+      const userEmail = user.primaryEmailAddress?.emailAddress;
+      setAuthHeaders(user.id, userName, userEmail);
+    } else {
+      clearAuthHeaders();
+    }
+  }, [isSignedIn, user]);
+
+  const fetchPolls = async () => {
+    try {
+      const response = await api.get<PollResponse>('/api/polls');
+      setPolls(response.data.polls);
+      setUserVotes(response.data.userVotes || {});
+      setUserLikes(response.data.userLikes || {});
+    } catch (error) {
+      console.error('Failed to fetch polls:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPolls();
+
+    const socket = getSocket();
+
+    socket.on('poll-created', (poll: Poll) => {
+      setPolls((prev) => [poll, ...prev]);
+    });
+
+    socket.on('poll-updated', (updatedPoll: Poll) => {
+      setPolls((prev) =>
+        prev.map((poll) => (poll._id === updatedPoll._id ? updatedPoll : poll))
+      );
+    });
+
+    socket.on('poll-deleted', ({ pollId }: { pollId: string }) => {
+      setPolls((prev) => prev.filter((poll) => poll._id !== pollId));
+    });
+
+    socket.on('poll-voted', ({ poll }: { poll: Poll }) => {
+      setPolls((prev) =>
+        prev.map((p) => (p._id === poll._id ? poll : p))
+      );
+    });
+
+    socket.on('poll-liked', ({ poll }: { poll: Poll }) => {
+      setPolls((prev) =>
+        prev.map((p) => (p._id === poll._id ? poll : p))
+      );
+    });
+
+    return () => {
+      socket.off('poll-created');
+      socket.off('poll-updated');
+      socket.off('poll-deleted');
+      socket.off('poll-voted');
+      socket.off('poll-liked');
+    };
+  }, []);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <Header />
+
+      <main className="container mx-auto px-4 py-8 max-w-3xl">
+        {isSignedIn ? (
+          <>
+            <div className="mb-6">
+              <button
+                onClick={() => setShowCreateForm(!showCreateForm)}
+                className="w-full px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+              >
+                {showCreateForm ? '− Hide Poll Form' : '+ Create New Poll'}
+              </button>
+            </div>
+
+            {showCreateForm && (
+              <CreatePollForm
+                onPollCreated={() => {
+                  setShowCreateForm(false);
+                  fetchPolls();
+                }}
+              />
+            )}
+          </>
+        ) : (
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 mb-6 text-center">
+            <h2 className="text-xl font-bold mb-2">Welcome to QuickPoll!</h2>
+            <p className="text-gray-700 dark:text-gray-300 mb-4">
+              Sign in to create polls and vote on existing ones.
+            </p>
+          </div>
+        )}
+
+        <div className="mb-4">
+          <h2 className="text-2xl font-bold">All Polls</h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400">
+            {polls.length} {polls.length === 1 ? 'poll' : 'polls'} available
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
+
+        {loading ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="mt-4 text-gray-600">Loading polls...</p>
+          </div>
+        ) : polls.length === 0 ? (
+          <div className="text-center py-12 bg-white dark:bg-gray-800 rounded-lg">
+            <p className="text-gray-600 dark:text-gray-400">No polls yet. Be the first to create one!</p>
+          </div>
+        ) : (
+          <div>
+            {polls.map((poll) => (
+              <PollCard
+                key={poll._id}
+                poll={poll}
+                userVote={userVotes[poll._id]}
+                userLiked={userLikes[poll._id]}
+                currentUserId={user?.id}
+                onUpdate={fetchPolls}
+              />
+            ))}
+          </div>
+        )}
       </main>
     </div>
   );
