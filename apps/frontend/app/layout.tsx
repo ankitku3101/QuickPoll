@@ -7,7 +7,7 @@ import { Poppins } from 'next/font/google';
 import { Toaster } from "react-hot-toast";
 
 export const metadata: Metadata = {
-  title: "QuickPoll - Real-Time Opinion Polling",
+  title: "QuickPoll - Real-Time Polling Platform",
   description: "Create polls, vote, and see live updates in real-time",
 };
 
