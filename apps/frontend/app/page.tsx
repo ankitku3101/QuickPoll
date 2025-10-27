@@ -2,13 +2,15 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useUser } from '@clerk/nextjs';
-import { BarChart, X, Filter } from 'lucide-react';
+import { BarChart, X, Filter, Heart, Star } from 'lucide-react';
 import Image from 'next/image';
 import { motion } from 'framer-motion';
 import CreatePollForm from '@/components/CreatePollForm';
 import PollCard from '@/components/PollCard';
 import { api, setAuthHeaders, clearAuthHeaders } from '@/lib/api';
 import { getSocket } from '@/lib/socket';
+import Link from 'next/link';
+import { FaGithub } from 'react-icons/fa';
 
 interface Poll {
   _id: string;
@@ -154,7 +156,6 @@ export default function Home() {
         <div className="container mx-auto px-4">
           <DottedDiv>
             <div className="grid lg:grid-cols-2">
-              {/* Left Content */}
               <motion.div
                 initial={{ opacity: 0, y: 30 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -206,7 +207,6 @@ export default function Home() {
                 </motion.div>
               </motion.div>
 
-              {/* Right Content */}
               <motion.div
                 initial={{ opacity: 0, x: 40 }}
                 animate={{ opacity: 1, x: 0 }}
@@ -248,7 +248,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Polls Section */}
       <main className="container mx-auto px-4 pb-32">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -268,7 +267,6 @@ export default function Home() {
               </p>
             </div>
 
-            {/* Filter Toggle */}
             {isSignedIn && (
               <div className="flex items-center gap-2 bg-muted rounded-full p-1">
                 <button
@@ -356,7 +354,6 @@ export default function Home() {
         )}
       </main>
 
-      {/* Create Poll Modal */}
       {showCreateModal && (
         <motion.div
           initial={{ opacity: 0 }}
@@ -388,6 +385,36 @@ export default function Home() {
           </motion.div>
         </motion.div>
       )}
+      <footer className="w-full py-6 text-center text-sm text-foreground border-t border-border mt-10 space-y-4">
+        <div className='flex items-center justify-center gap-2'>
+          Made with <span><Heart fill='#fb2c36' className="h-4 w-4 text-red-500" aria-hidden="true" /></span> by{' '}
+          <Link
+            href="https://github.com/ankitku3101"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-ring"
+            aria-label="Ankit's GitHub profile (opens in new tab)"
+          >
+            ankitku3101
+          </Link>
+        </div>
+
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <span>Star it on GitHub</span>
+
+          <Link
+            href="https://github.com/ankitku3101/Quickpoll"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 rounded-md border px-3 py-1 text-sm hover:bg-ring/20 focus:outline-none focus:ring-2 focus:ring-offset-2"
+            aria-label="Star the Quickpoll repo on GitHub (opens in new tab)"
+          >
+            <FaGithub className="h-4 w-4" aria-hidden="true" />
+            <span className="font-medium">Quickpoll</span>
+            <span className="sr-only"> — star on GitHub</span>
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }
