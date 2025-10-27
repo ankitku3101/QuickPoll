@@ -5,6 +5,7 @@ import { ThemeProvider } from "next-themes";
 import Header from "@/components/Header";
 import { Poppins } from 'next/font/google';
 import { Toaster } from "react-hot-toast";
+import { Analytics } from "@vercel/analytics/next"
 
 export const metadata: Metadata = {
   title: "QuickPoll - Real-Time Polling Platform",
@@ -29,6 +30,7 @@ export default function RootLayout({
           <body className="antialiased">
             <Header />
             {children}
+            <Analytics />
             <Toaster position="bottom-right" />
           </body>
         </ThemeProvider>
