@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect, useCallback } from 'react';
+import { useState, useMemo, useEffect, useCallback, use } from 'react';
 import { Heart, Users, Trash2, Calendar, AlertCircle, LogIn } from 'lucide-react';
 import { api } from '@/lib/api';
 import {
@@ -15,6 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import toast from 'react-hot-toast';
+import Link from 'next/link';
 
 interface PollOption {
   id: string;
@@ -385,6 +386,12 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
           <Users className="size-4" aria-hidden="true" />
           <span>{formatCount(poll.totalVotes)}</span>
         </div>
+        <Link
+          href={`/poll/${poll._id}`}
+          className="ml-auto text-sm text-primary hover:underline font-medium"
+        >
+          Detailed View
+        </Link>
       </div>
 
       {(voting || liking) && (
