@@ -6,6 +6,7 @@ import Header from "@/components/Header";
 import { Poppins } from 'next/font/google';
 import { Toaster } from "react-hot-toast";
 import { Analytics } from "@vercel/analytics/next"
+import AuthSync from "@/components/AuthSync";
 
 export const metadata: Metadata = {
   title: "QuickPoll - Real-Time Polling Platform",
@@ -28,6 +29,7 @@ export default function RootLayout({
       <html lang="en" className={poppins.variable}>
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
           <body className="antialiased">
+            <AuthSync />
             <Header />
             {children}
             <Analytics />

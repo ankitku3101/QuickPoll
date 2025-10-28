@@ -5,6 +5,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import { connectDB } from './config/database';
 import pollsRouter from './routes/polls';
+import guestRouter from './routes/guest';
 
 dotenv.config();
 
@@ -25,6 +26,7 @@ connectDB();
 
 // Routes
 app.use('/api/polls', pollsRouter);
+app.use('/api/guest', guestRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

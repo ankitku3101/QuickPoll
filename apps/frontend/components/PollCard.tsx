@@ -264,7 +264,9 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
             <Calendar className="size-3 shrink-0" aria-hidden="true" />
             <span>{formattedDate}</span>
             <span className="bg-foreground h-2.5 w-[1px]" aria-hidden="true" />
-            <span className="truncate">{poll.createdByName}</span>
+            <span className="truncate">
+              {poll.createdByName.startsWith("guest_") ? "GuestUser" : poll.createdByName}
+            </span>
           </div>
           <h3 className="text-xl md:text-2xl font-semibold tracking-tight mb-2 break-words">
             {poll.title}
@@ -294,10 +296,10 @@ export default function PollCard({ poll, userVote, userLiked, currentUserId, onU
                 </DialogDescription>
               </DialogHeader>
               <DialogFooter className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
+                <Button variant="outline" className='cursor-pointer' onClick={() => setDeleteDialogOpen(false)} disabled={deleting}>
                   Cancel
                 </Button>
-                <Button variant="destructive" onClick={handleDelete} disabled={deleting}>
+                <Button variant="destructive" className='cursor-pointer' onClick={handleDelete} disabled={deleting}>
                   {deleting ? 'Deleting...' : 'Confirm Delete'}
                 </Button>
               </DialogFooter>

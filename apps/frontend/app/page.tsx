@@ -54,16 +54,6 @@ export default function Home() {
   const [animationKey, setAnimationKey] = useState(0);
   const [filterMode, setFilterMode] = useState<'all' | 'my'>('all');
 
-  // Set auth headers when user signs in
-  useEffect(() => {
-    if (isSignedIn && user) {
-      const userName = user.firstName || user.username || 'Anonymous';
-      const userEmail = user.primaryEmailAddress?.emailAddress;
-      setAuthHeaders(user.id, userName, userEmail);
-    } else {
-      clearAuthHeaders();
-    }
-  }, [isSignedIn, user]);
 
   // Fetch polls with proper error handling
   const fetchPolls = useCallback(async () => {

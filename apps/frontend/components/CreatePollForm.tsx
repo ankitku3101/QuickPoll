@@ -149,7 +149,7 @@ export default function CreatePollForm({ onPollCreated }: { onPollCreated: (poll
           <button
             type="submit"
             disabled={loading}
-            className="px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed font-medium text-sm transition-all"
+            className="px-5 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer font-medium text-sm transition-all"
           >
             {loading ? 'Creating...' : 'Create Poll'}
           </button>
