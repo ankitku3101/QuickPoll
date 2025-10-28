@@ -59,7 +59,7 @@ export default function GuestLoginButton({ className }: GuestLoginButtonProps) {
     <button
       onClick={handleGuestLogin}
       disabled={loading}
-      className={`${className} px-4 py-2 text-sm font-medium rounded-lg border border-border bg-background hover:bg-muted transition-all tracking-tight cursor-pointer disabled:opacity-60`}
+      className={`${className} text-sm font-medium rounded-lg border border-border bg-background hover:bg-muted transition-all tracking-tight cursor-pointer disabled:opacity-60`}
     >
       {loading ? "Hang On.." : "Guest User"}
     </button>

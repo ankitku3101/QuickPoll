@@ -152,9 +152,9 @@ export default function Home() {
                 transition={{ duration: 0.8, ease: 'easeOut' }}
                 className="flex w-full flex-col gap-8 px-10 py-20 md:px-14"
               >
-                <div className="flex w-fit items-center gap-1 rounded-full border border-border px-6 py-2 transition-all ease-in-out">
+                <div className="flex w-fit items-center gap-1 rounded-full border border-border px-4 py-2 transition-all ease-in-out">
                   <BarChart className="size-4 animate-pulse text-green-400" />
-                  <span className="text-muted-foreground text-sm font-medium tracking-tight">
+                  <span className="text-muted-foreground text-xs sm:text-sm font-medium tracking-tight mt-0.5">
                     Real-time polling made simple
                   </span>
                 </div>
